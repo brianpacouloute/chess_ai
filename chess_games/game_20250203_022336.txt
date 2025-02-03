@@ -1,0 +1,20 @@
+Players: Player vs AI
+Difficulty: Hard
+Result: win
+Move:rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w:e2e4
+Move:rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b:a7a5
+Move:rnbqkbnr/1ppppppp/8/p7/4P3/8/PPPP1PPP/RNBQKBNR w:b1c3
+Move:rnbqkbnr/1ppppppp/8/p7/4P3/2N5/PPPP1PPP/R1BQKBNR b:a5a4
+Move:rnbqkbnr/1ppppppp/8/8/p3P3/2N5/PPPP1PPP/R1BQKBNR w:g1f3
+Move:rnbqkbnr/1ppppppp/8/8/p3P3/2N2N2/PPPP1PPP/R1BQKB1R b:a4a3
+Move:rnbqkbnr/1ppppppp/8/8/4P3/p1N2N2/PPPP1PPP/R1BQKB1R w:b2a3
+Move:rnbqkbnr/1ppppppp/8/8/4P3/P1N2N2/P1PP1PPP/R1BQKB1R b:a8a3
+Move:1nbqkbnr/1ppppppp/8/8/4P3/r1N2N2/P1PP1PPP/R1BQKB1R w:c1a3
+Move:1nbqkbnr/1ppppppp/8/8/4P3/B1N2N2/P1PP1PPP/R2QKB1R b:b7b5
+Move:1nbqkbnr/2pppppp/8/1p6/4P3/B1N2N2/P1PP1PPP/R2QKB1R w:f1b5
+Move:1nbqkbnr/2pppppp/8/1B6/4P3/B1N2N2/P1PP1PPP/R2QK2R b:c7c5
+Move:1nbqkbnr/3ppppp/8/1Bp5/4P3/B1N2N2/P1PP1PPP/R2QK2R w:a3 c5
+Move:1nbqkbnr/3ppppp/8/1BB5/4P3/2N2N2/P1PP1PPP/R2QK2R b:d8a5
+Move:1nb1kbnr/3ppppp/8/qBB5/4P3/2N2N2/P1PP1PPP/R2QK2R w:c3d5
+Move:1nb1kbnr/3ppppp/8/qBBN4/4P3/5N2/P1PP1PPP/R2QK2R b:a5b5
+Move:1nb1kbnr/3ppppp/8/1qBN4/4P3/5N2/P1PP1PPP/R2QK2R w:d5c7
