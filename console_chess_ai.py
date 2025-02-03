@@ -8,7 +8,7 @@ RED_COLOR = "\033[31m"
 COLUMN_COLOR = "\033[34m" 
 ROW_COLOR = "\033[32m"  
 RESET_COLOR = "\033[0m" 
-
+ 
 # Representing the chess board
 def initialize_board():
     board = [
