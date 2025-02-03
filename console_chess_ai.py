@@ -625,7 +625,6 @@ def game_loop():
     print(f"Checks occurred: {game_stats['checks']}")
     print(f"Game duration: {time.time() - game_stats['start_time']:.1f} seconds")
     print_board(board)
-    print_board(board)
     
 
     
