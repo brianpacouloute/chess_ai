@@ -2,11 +2,12 @@ import random
 import time
 
 # ANSI escape codes for color
-WHITE_PIECE_COLOR = "\033[97m"  # White color for pieces
-BLACK_PIECE_COLOR = "\033[30m"  # Black color for pieces
-COLUMN_COLOR = "\033[34m"  # Blue for column letters
-ROW_COLOR = "\033[32m"  # Green for row numbers
-RESET_COLOR = "\033[0m"         # Reset to default color
+WHITE_PIECE_COLOR = "\033[97m" 
+BLACK_PIECE_COLOR = "\033[30m" 
+RED_COLOR = "\033[31m"
+COLUMN_COLOR = "\033[34m" 
+ROW_COLOR = "\033[32m"  
+RESET_COLOR = "\033[0m" 
 
 # Representing the chess board
 def initialize_board():
@@ -480,7 +481,8 @@ def game_loop():
                         break
                         
             if not valid_move_made:
-                print("AI has no valid moves!")
+                winner = 'White' if current_turn == 'black' else 'Black'
+                print(f"\n{RED_COLOR}*** {winner} WINS! AI has no valid moves! ***{RESET_COLOR}")
                 game_over = True
             
             current_turn = 'white' if current_turn == 'black' else 'black'
@@ -601,6 +603,9 @@ def game_loop():
             
             if target != '.':
                 print(f"You captured {target}!")
+                # Update capture statistics
+                captured_color = 'white' if target.islower() else 'black'
+                game_stats['captures'][captured_color] += 1
             
             # Check pawn promotion
             if (piece == 'P' and end_row == 0) or (piece == 'p' and end_row == 7):
@@ -608,6 +613,7 @@ def game_loop():
                 while new_piece not in ['Q', 'R', 'B', 'N']:
                     new_piece = input("Invalid choice. Promote to (Q/R/B/N): ").upper()
                 board[end_row][end_col] = new_piece if piece.isupper() else new_piece.lower()
+                game_stats['promotions'] += 1
                 print(f"Pawn promoted to {new_piece}!")
 
             game_stats['moves'] += 1
