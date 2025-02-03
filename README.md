@@ -1,5 +1,4 @@
-# CHESS GAME - VS CODE EDITION
-
+# AI CHESS GAME
 ## CONTROLS & FEATURES
 
 ### 1. Move Input:
