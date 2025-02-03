@@ -50,3 +50,5 @@
 - Detailed game statistics
 - Stalemate detection for AI
 - Input validation and error handling
+- Added memory to hard mode
+- Computer now learns from your past matches and uses that knownledge in later hard mode matches
