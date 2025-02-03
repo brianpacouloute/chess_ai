@@ -1,5 +1,7 @@
 import random
 import time
+import datetime
+import glob
 
 # ANSI escape codes for color
 WHITE_PIECE_COLOR = "\033[97m" 
@@ -8,7 +10,8 @@ RED_COLOR = "\033[31m"
 COLUMN_COLOR = "\033[34m" 
 ROW_COLOR = "\033[32m"  
 RESET_COLOR = "\033[0m" 
- 
+RED_ALERT = "\033[31m[LEARNING]\033[0m "
+
 # Representing the chess board
 def initialize_board():
     board = [
@@ -23,16 +26,143 @@ def initialize_board():
     ]
     return board
 
-def check_for_win(board):
-    # We just check if either king is still on the board
-    white_king = any(piece == 'K' for row in board for piece in row)
-    black_king = any(piece == 'k' for row in board for piece in row)
+def board_to_fen(board, current_turn):
+    fen_rows = []
+    for row in board:
+        fen_row = []
+        empty = 0
+        for cell in row:
+            if cell == '.':
+                empty += 1
+            else:
+                if empty > 0:
+                    fen_row.append(str(empty))
+                    empty = 0
+                fen_row.append(cell)
+        if empty > 0:
+            fen_row.append(str(empty))
+        fen_rows.append(''.join(fen_row))
+    fen = '/'.join(fen_rows)
+    fen += f' {current_turn[0]}'  # Add active color
+    return fen
+
+def parse_fen(fen_str):
+    fen_parts = fen_str.rsplit(' ', 1)
+    fen_board = fen_parts[0]
+    board = []
+    for row in fen_board.split('/'):
+        new_row = []
+        for c in row:
+            if c.isdigit():
+                new_row.extend(['.'] * int(c))
+            else:
+                new_row.append(c)
+        board.append(new_row)
+    return board
+
+class GameMemory:
+    def __init__(self):
+        self.memory = {}
+        self.load_all_games()
     
+    def load_all_games(self):
+        game_files = glob.glob("chess_games/*.txt")
+        for game_file in game_files:
+            self.process_game_file(game_file)
+    
+    def process_game_file(self, filename):
+        try:
+            with open(filename, 'r') as f:
+                lines = f.readlines()
+            
+            result = None
+            moves = []
+            for line in lines:
+                if line.startswith("Result:"):
+                    result = line.split(":", 1)[1].strip()
+                elif line.startswith("Move:"):
+                    moves.append(line.strip().split(":", 2)[1:])
+            
+            if not result or not moves:
+                return
+            
+            white_outcome = None
+            if "White wins" in result:
+                white_outcome = 'win'
+            elif "Black wins" in result:
+                white_outcome = 'loss'
+            else:
+                white_outcome = 'draw'
+            
+            board = initialize_board()
+            current_turn = 'white'
+            for move in moves:
+                fen_before, move_uci = move
+                board_state = parse_fen(fen_before)
+                outcome = white_outcome if current_turn == 'white' else 'loss' if white_outcome == 'win' else 'win' if white_outcome == 'loss' else 'draw'
+                
+                if fen_before not in self.memory:
+                    self.memory[fen_before] = {}
+                
+                if move_uci not in self.memory[fen_before]:
+                    self.memory[fen_before][move_uci] = {'wins': 0, 'losses': 0, 'draws': 0}
+                
+                if outcome == 'win':
+                    self.memory[fen_before][move_uci]['wins'] += 1
+                elif outcome == 'loss':
+                    self.memory[fen_before][move_uci]['losses'] += 1
+                else:
+                    self.memory[fen_before][move_uci]['draws'] += 1
+                
+                # Update board state silently
+                start, end = notation_to_coordinates(move_uci)
+                move_piece(board_state, start, end, silent=True)  # Added silent=True here
+                current_turn = 'black' if current_turn == 'white' else 'white'
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+
+def get_rating():
+    try:
+        with open("chess_rating.txt", "r") as f:
+            return int(f.read())
+    except FileNotFoundError:
+        return 1000  
+
+def update_rating(result, difficulty):
+    rating = get_rating()
+    k_values = {'easy': 10, 'medium': 20, 'hard': 30}
+    k = k_values.get(difficulty, 10)
+    
+    if result == 'win':
+        rating += k
+    elif result == 'loss':
+        rating -= k
+    
+    rating = max(rating, 0)
+    with open("chess_rating.txt", "w") as f:
+        f.write(str(rating))
+    return rating
+
+def check_for_win(board):
+    white_king = False
+    black_king = False
+    
+    # Scan entire board for kings
+    for row in board:
+        for piece in row:
+            if piece == 'K':
+                white_king = True
+            elif piece == 'k':
+                black_king = True
+    
+    if not white_king and not black_king:
+        return "Draw - Both kings captured!"
     if not white_king:
-        return "Black wins!"
-    elif not black_king:
-        return "White wins!"
+        return "Black wins by capturing the king!"
+    if not black_king:
+        return "White wins by capturing the king!"
     return None
+
 
 # Display the board with colors
 def print_board(board):
@@ -72,8 +202,30 @@ def generate_medium_move(board, color):
         return random.choice(capture_moves)
     return random.choice(moves) if moves else None
 
-def generate_hard_move(board, color):
-    """Simple piece-value based moves"""
+def generate_hard_move(board, color, memory):
+    current_fen = board_to_fen(board, color)
+    if current_fen in memory.memory:
+        moves = memory.memory[current_fen]
+        best_move = None
+        best_score = -float('inf')
+        
+        for move, stats in moves.items():
+            total = stats['wins'] + stats['losses'] + stats['draws']
+            if total == 0:
+                continue
+            score = (stats['wins'] - stats['losses']) / total
+            if score > best_score:
+                best_score = score
+                best_move = move
+            elif score == best_score:
+                if random.random() < 0.5:
+                    best_move = move
+        
+        if best_move:
+            print(f"{RED_ALERT}Using learned move: {best_move}")
+            return notation_to_coordinates(best_move)
+    
+    # Fallback to original hard move logic
     piece_values = {'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0,
                     'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0}
     best_move = None
@@ -89,9 +241,8 @@ def generate_hard_move(board, color):
                     if target != '.':
                         current_value += piece_values.get(target, 0)
                     
-                    # Simple positional bonus
                     if color == 'white':
-                        current_value += (7 - end[0]) * 0.1  # Encourage advancing
+                        current_value += (7 - end[0]) * 0.1
                     else:
                         current_value += end[0] * 0.1
                         
@@ -123,24 +274,22 @@ def get_piece_color(piece):
     return RESET_COLOR
 
 # Move piece and handle captured pieces
-def move_piece(board, start, end):
+def move_piece(board, start, end, silent=False):
     start_row, start_col = start
     end_row, end_col = end
     
     piece = board[start_row][start_col]
     target = board[end_row][end_col]
     
-    if target != '.':
+    if target != '.' and not silent:  # Added silent check
         print(f"{get_piece_color(piece)}{piece}{RESET_COLOR} captured {get_piece_color(target)}{target}{RESET_COLOR}!")
     
     # Handle pawn promotion
     if piece in ['P', 'p']:
         promotion_row = 0 if piece == 'P' else 7
         if end_row == promotion_row:
-            # Auto-promote to Queen for AI
             piece = 'Q' if piece.isupper() else 'q'
     
-    # Update board
     board[end_row][end_col] = piece
     board[start_row][start_col] = '.'
 
@@ -363,7 +512,6 @@ def ai_move(board):
                     move_piece(board, (row, col), (row - 1, col))
                     return
 
-
 def game_loop():
     board = initialize_board()
     print("Welcome to Chess!")
@@ -396,8 +544,12 @@ def game_loop():
     # AI setup
     ai_difficulty = None
     player_color = None
+    memory = None
     if mode == '1':
         ai_difficulty = set_difficulty()
+        # Initialize AI memory for hard mode
+        if ai_difficulty == 'hard':
+            memory = GameMemory()
         # Validate and echo color choice
         while True:
             color_choice = input("Choose your color (w/b): ").strip().lower()
@@ -410,15 +562,31 @@ def game_loop():
     current_turn = 'white'
     game_over = False
     
+    # Create game directory if not exists
+    import os
+    if not os.path.exists('chess_games'):
+        os.makedirs('chess_games')
+
+    # Initialize game logging
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    game_filename = f"chess_games/game_{timestamp}.txt"
+    log_entries = []
+    
+    # Initialize rating
+    rating = get_rating()
+    print(f"Your current rating: {rating}")
+
     while not game_over:
         print_board(board)
         
         # Check for king capture
         result = check_for_win(board)
-        if result:
-            print(f"\n*** {result} ***")
-            game_over = True
-            break
+        if not result:
+            if is_checkmate(board, current_turn):
+                winner = 'Black' if current_turn == 'white' else 'White'
+                result = f"{winner} wins by checkmate!"
+            else:
+                result = "Draw"
 
         # Check checkmate
         if is_checkmate(board, current_turn):
@@ -451,16 +619,20 @@ def game_loop():
                 elif ai_difficulty == 'medium':
                     move = generate_medium_move(board, current_turn)
                 elif ai_difficulty == 'hard':
-                    move = generate_hard_move(board, current_turn)
+                    move = generate_hard_move(board, current_turn, memory)
 
                 if move:
                     start, end = move
                     # Validate move doesn't leave AI in check
                     temp_board = simulate_move(board, start, end)
                     if not is_in_check(temp_board, current_turn):
-                        # Execute move
+                        # Log the move
+                        fen_before = board_to_fen(board, current_turn)
                         start_pos = coordinates_to_notation(*start)
                         end_pos = coordinates_to_notation(*end)
+                        log_entries.append(f"Move:{fen_before}:{start_pos}{end_pos}")
+                        
+                        # Execute move
                         piece = board[start[0]][start[1]]
                         target = board[end[0]][end[1]]
                         
@@ -597,6 +769,10 @@ def game_loop():
                 print("Invalid move - would leave king in check!")
                 continue
                 
+            # Log the move
+            fen_before = board_to_fen(board, current_turn)
+            log_entries.append(f"Move:{fen_before}:{move_input}")
+            
             # Execute move
             target = board[end_row][end_col]
             move_piece(board, start, end)
@@ -632,8 +808,27 @@ def game_loop():
     print(f"Game duration: {time.time() - game_stats['start_time']:.1f} seconds")
     print_board(board)
     
+    # Save game log
+    result = check_for_win(board) or "Draw"
+    print(f"\nGame result: {result}")
+    
+    with open(game_filename, 'w') as f:
+        f.write(f"Players: {'Player vs AI' if mode == '1' else 'Two Player'}\n")
+        f.write(f"Difficulty: {ai_difficulty.capitalize() if mode == '1' else 'N/A'}\n")
+        f.write(f"Result: {result}\n")
+        f.write("\n".join(log_entries) + "\n")
 
+    # Update rating for Player vs AI games
+    if mode == '1':
+        if "wins" in result.lower():
+            player_result = 'win' if player_color in result.lower() else 'loss'
+        else:
+            player_result = 'draw'
+        new_rating = update_rating(player_result, ai_difficulty)
+        print(f"Your new rating: {new_rating}")
     
 # Run the game
 if __name__ == "__main__":
     game_loop()
+
+    # it keesp saying draw even though it's a win and at the star tof all hard mode match it prints the past captires of all the past games
