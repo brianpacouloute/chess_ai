@@ -367,25 +367,42 @@ def game_loop():
     board = initialize_board()
     print("Welcome to Chess!")
     
-    # Game mode selection
+    # Game statistics
+    game_stats = {
+        'moves': 0,
+        'captures': {'white': 0, 'black': 0},
+        'promotions': 0,
+        'checks': 0,
+        'start_time': time.time()
+    }
+
+    # Validate game mode
     while True:
         mode = input("Choose game mode (1 - Player vs AI, 2 - Two Player): ").strip()
         if mode in ['1', '2']:
             break
         print("Invalid input. Enter 1 or 2")
 
-    # Suggested moves setting
-    show_suggested = input("Enable suggested moves? (y/n): ").lower().strip()
+    # Validate and echo suggested moves choice
+    show_suggested = ''
+    while show_suggested not in ['y', 'n']:
+        show_suggested = input("Enable suggested moves? (y/n): ").lower().strip()
+        if show_suggested not in ['y', 'n']:
+            print("Please enter 'y' or 'n'")
     show_suggested_moves = show_suggested == 'y'
+    print(f"Suggested moves {'enabled' if show_suggested_moves else 'disabled'}")
 
+    # AI setup
     ai_difficulty = None
     player_color = None
     if mode == '1':
         ai_difficulty = set_difficulty()
+        # Validate and echo color choice
         while True:
             color_choice = input("Choose your color (w/b): ").strip().lower()
             if color_choice in ['w', 'b']:
                 player_color = 'white' if color_choice == 'w' else 'black'
+                print(f"You are playing as {player_color}")
                 break
             print("Invalid input. Enter 'w' or 'b'")
 
@@ -395,46 +412,74 @@ def game_loop():
     while not game_over:
         print_board(board)
         
-        # Check for checkmate
-        if is_checkmate(board, 'white'):
-            print("\n*** CHECKMATE! Black wins! ***")
+        # Check for king capture
+        result = check_for_win(board)
+        if result:
+            print(f"\n*** {result} ***")
             game_over = True
             break
-        if is_checkmate(board, 'black'):
-            print("\n*** CHECKMATE! White wins! ***")
+
+        # Check checkmate
+        if is_checkmate(board, current_turn):
+            winner = 'Black' if current_turn == 'white' else 'White'
+            print(f"\n*** CHECKMATE! {winner} wins! ***")
             game_over = True
             break
-            
+
+        # Check and announce checks
+        check_status = []
         if is_in_check(board, 'white'):
-            print("\nWhite king is in check!")
+            game_stats['checks'] += 1
+            check_status.append("White king in check!")
         if is_in_check(board, 'black'):
-            print("\nBlack king is in check!")
+            game_stats['checks'] += 1
+            check_status.append("Black king in check!")
+        if check_status:
+            print("\n" + " | ".join(check_status))
 
         # AI turn
         if mode == '1' and current_turn != player_color:
             print(f"\n{current_turn.capitalize()} AI's turn...")
             time.sleep(1)
             
-            move = None
-            if ai_difficulty == 'easy':
-                move = generate_random_move(board, current_turn)
-            elif ai_difficulty == 'medium':
-                move = generate_medium_move(board, current_turn)
-            elif ai_difficulty == 'hard':
-                move = generate_hard_move(board, current_turn)
+            valid_move_made = False
+            for _ in range(3):  # Try 3 times to find valid move
+                move = None
+                if ai_difficulty == 'easy':
+                    move = generate_random_move(board, current_turn)
+                elif ai_difficulty == 'medium':
+                    move = generate_medium_move(board, current_turn)
+                elif ai_difficulty == 'hard':
+                    move = generate_hard_move(board, current_turn)
 
-            if move:
-                start, end = move
-                start_pos = coordinates_to_notation(*start)
-                end_pos = coordinates_to_notation(*end)
-                piece = board[start[0]][start[1]]
-                target = board[end[0]][end[1]]
-                
-                move_piece(board, start, end)
-                print(f"AI moved {piece} from {start_pos} to {end_pos}")
-                if target != '.':
-                    print(f"AI captured your {target}!")
-            else:
+                if move:
+                    start, end = move
+                    # Validate move doesn't leave AI in check
+                    temp_board = simulate_move(board, start, end)
+                    if not is_in_check(temp_board, current_turn):
+                        # Execute move
+                        start_pos = coordinates_to_notation(*start)
+                        end_pos = coordinates_to_notation(*end)
+                        piece = board[start[0]][start[1]]
+                        target = board[end[0]][end[1]]
+                        
+                        move_piece(board, start, end)
+                        game_stats['moves'] += 1
+                        
+                        if target != '.':
+                            color = 'white' if target.islower() else 'black'
+                            game_stats['captures'][color] += 1
+                            print(f"AI captured {target}!")
+
+                        # Handle pawn promotion for AI
+                        if (piece in ['P', 'p']) and ((end[0] == 0 and piece == 'P') or (end[0] == 7 and piece == 'p')):
+                            board[end[0]][end[1]] = 'Q' if piece == 'P' else 'q'
+                            game_stats['promotions'] += 1
+                        
+                        valid_move_made = True
+                        break
+                        
+            if not valid_move_made:
                 print("AI has no valid moves!")
                 game_over = True
             
@@ -442,8 +487,14 @@ def game_loop():
             continue
 
         # Human player's turn
-        print(f"\n{current_turn.capitalize()}'s turn:")
+        print(f"\n{current_turn.capitalize()}'s turn (or type 'quit' to exit):")
         move_input = input("Enter move (e.g. 'e2e4'), square (e.g. 'e2'), or piece (e.g. 'N'): ").strip().lower()
+
+        # Handle quit command
+        if move_input == 'quit':
+            print("\nGame ended by user request")
+            game_over = True
+            break
 
         if not move_input:
             print("Please enter a valid input")
@@ -513,9 +564,6 @@ def game_loop():
                 start_not = coordinates_to_notation(*start)
                 end_not = coordinates_to_notation(*end)
                 print(f"  {start_not} → {end_not}")
-            
-            if show_suggested_moves:
-                print_board(board)
             continue
 
         # Handle full move input
@@ -561,14 +609,25 @@ def game_loop():
                     new_piece = input("Invalid choice. Promote to (Q/R/B/N): ").upper()
                 board[end_row][end_col] = new_piece if piece.isupper() else new_piece.lower()
                 print(f"Pawn promoted to {new_piece}!")
-            
+
+            game_stats['moves'] += 1
             current_turn = 'black' if current_turn == 'white' else 'black'
-            
+        
         except Exception as e:
             print(f"Invalid move: {str(e)}")
 
-    print("\nGame over!")
+    # Game over statistics
+    print("\n=== Game Statistics ===")
+    print(f"Total moves: {game_stats['moves']}")
+    print(f"White captures: {game_stats['captures']['white']}")
+    print(f"Black captures: {game_stats['captures']['black']}")
+    print(f"Pawn promotions: {game_stats['promotions']}")
+    print(f"Checks occurred: {game_stats['checks']}")
+    print(f"Game duration: {time.time() - game_stats['start_time']:.1f} seconds")
     print_board(board)
+    print_board(board)
+    
+
     
 # Run the game
 if __name__ == "__main__":
