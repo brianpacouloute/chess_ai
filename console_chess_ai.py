@@ -127,30 +127,41 @@ def move_piece(board, start, end):
     end_row, end_col = end
     
     piece = board[start_row][start_col]
-    target_piece = board[end_row][end_col]
+    target = board[end_row][end_col]
     
-    if target_piece != '.':
-        print(f"{get_piece_color(piece)}{piece}{RESET_COLOR} captured {get_piece_color(target_piece)}{target_piece}{RESET_COLOR}!")
+    if target != '.':
+        print(f"{get_piece_color(piece)}{piece}{RESET_COLOR} captured {get_piece_color(target)}{target}{RESET_COLOR}!")
     
-    # Move the piece
+    # Handle pawn promotion
+    if piece in ['P', 'p']:
+        promotion_row = 0 if piece == 'P' else 7
+        if end_row == promotion_row:
+            # Auto-promote to Queen for AI
+            piece = 'Q' if piece.isupper() else 'q'
+    
+    # Update board
     board[end_row][end_col] = piece
     board[start_row][start_col] = '.'
 
 # Generate random moves (easy AI)
 def generate_random_move(board, color):
     moves = []
-    for i in range(8):
-        for j in range(8):
-            if (board[i][j].isupper() and color == 'white') or (board[i][j].islower() and color == 'black'):
-                piece = board[i][j]
-                # For simplicity, just add moves that are in bounds (you'd need more logic here)
-                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    x, y = i + dx, j + dy
-                    if is_in_bounds(x, y) and board[x][y] == '.':
-                        moves.append(((i, j), (x, y)))
-    if moves:
-        return random.choice(moves)
-    return None
+    
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            
+            # Check if piece belongs to current color
+            if (color == 'white' and piece.isupper()) or (color == 'black' and piece.islower()):
+                # Get all legal moves using centralized validation
+                legal_moves = show_legal_moves(board, (row, col))
+                
+                # Add valid moves to list with start and end positions
+                for move in legal_moves:
+                    moves.append(((row, col), move))
+    
+    # Return random choice if moves exist
+    return random.choice(moves) if moves else None
 
 # Show legal moves for a piece
 def show_legal_moves(board, start):
@@ -158,34 +169,30 @@ def show_legal_moves(board, start):
     x, y = start
     piece = board[x][y]
     
-    # Pawn movement
+    # Pawn movement (Fixed pawn movement added conversion when reaches the otehr side)
     if piece == 'P' or piece == 'p':
         if piece == 'P':  # White pawn
-            # Single step forward
+            # Normal moves
             if is_in_bounds(x-1, y) and board[x-1][y] == '.':
                 legal_moves.append((x-1, y))
-                # Double step from starting position
+                # Initial two-square move
                 if x == 6 and board[x-2][y] == '.':
                     legal_moves.append((x-2, y))
-            # Diagonal captures
+            # Captures
             for dy in [-1, 1]:
-                if is_in_bounds(x-1, y+dy):
-                    target = board[x-1][y+dy]
-                    if target != '.' and target.islower():
-                        legal_moves.append((x-1, y+dy))
+                if is_in_bounds(x-1, y+dy) and board[x-1][y+dy] != '.' and board[x-1][y+dy].islower():
+                    legal_moves.append((x-1, y+dy))
         else:  # Black pawn
-            # Single step forward
+            # Normal moves
             if is_in_bounds(x+1, y) and board[x+1][y] == '.':
                 legal_moves.append((x+1, y))
-                # Double step from starting position
+                # Initial two-square move
                 if x == 1 and board[x+2][y] == '.':
                     legal_moves.append((x+2, y))
-            # Diagonal captures
+            # Captures
             for dy in [-1, 1]:
-                if is_in_bounds(x+1, y+dy):
-                    target = board[x+1][y+dy]
-                    if target != '.' and target.isupper():
-                        legal_moves.append((x+1, y+dy))
+                if is_in_bounds(x+1, y+dy) and board[x+1][y+dy] != '.' and board[x+1][y+dy].isupper():
+                    legal_moves.append((x+1, y+dy))
 
     # Rook movement
     elif piece == 'r' or piece == 'R':
