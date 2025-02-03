@@ -145,23 +145,76 @@ def move_piece(board, start, end):
 
 # Generate random moves (easy AI)
 def generate_random_move(board, color):
-    moves = []
+    valid_moves = []
+    in_check = is_in_check(board, color)
     
+    for i in range(8):
+        for j in range(8):
+            piece = board[i][j]
+            if (color == 'white' and piece.isupper()) or (color == 'black' and piece.islower()):
+                moves = show_legal_moves(board, (i, j))
+                for move in moves:
+                    temp_board = simulate_move(board, (i, j), move)
+                    # Only consider moves that resolve check if in check
+                    if not in_check or not is_in_check(temp_board, color):
+                        valid_moves.append(((i, j), move))
+    
+    return random.choice(valid_moves) if valid_moves else None
+
+
+def is_in_check(board, color):
+    king_pos = find_king_position(board, color)
+    if king_pos is None:
+        return False
+    
+    opponent_color = 'black' if color == 'white' else 'white'
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
-            
-            # Check if piece belongs to current color
-            if (color == 'white' and piece.isupper()) or (color == 'black' and piece.islower()):
-                # Get all legal moves using centralized validation
-                legal_moves = show_legal_moves(board, (row, col))
-                
-                # Add valid moves to list with start and end positions
-                for move in legal_moves:
-                    moves.append(((row, col), move))
+            if piece != '.' and ((opponent_color == 'white' and piece.isupper()) or \
+                                 (opponent_color == 'black' and piece.islower())):
+                moves = show_legal_moves(board, (row, col))
+                if king_pos in moves:
+                    return True
+    return False
+
+def simulate_move(board, start, end):
+    temp_board = [row.copy() for row in board]
+    start_row, start_col = start
+    end_row, end_col = end
+    piece = temp_board[start_row][start_col]
     
-    # Return random choice if moves exist
-    return random.choice(moves) if moves else None
+    # Handle pawn promotion in simulation
+    if piece in ['P', 'p']:
+        if (piece == 'P' and end_row == 0) or (piece == 'p' and end_row == 7):
+            piece = 'Q' if piece == 'P' else 'q'
+    
+    temp_board[end_row][end_col] = piece
+    temp_board[start_row][start_col] = '.'
+    return temp_board
+
+def find_king_position(board, color):
+    king = 'K' if color == 'white' else 'k'
+    for row in range(8):
+        for col in range(8):
+            if board[row][col] == king:
+                return (row, col)
+    return None
+
+def is_checkmate(board, color):
+    if not is_in_check(board, color):
+        return False
+    
+    for i in range(8):
+        for j in range(8):
+            piece = board[i][j]
+            if (color == 'white' and piece.isupper()) or (color == 'black' and piece.islower()):
+                moves = show_legal_moves(board, (i, j))
+                for move in moves:
+                    temp_board = simulate_move(board, (i, j), move)
+                    if not is_in_check(temp_board, color):
+                        return False
+    return True
 
 # Show legal moves for a piece
 def show_legal_moves(board, start):
@@ -309,7 +362,7 @@ def ai_move(board):
                     move_piece(board, (row, col), (row - 1, col))
                     return
 
-# Game loop
+
 def game_loop():
     board = initialize_board()
     print("Welcome to Chess!")
@@ -320,6 +373,10 @@ def game_loop():
         if mode in ['1', '2']:
             break
         print("Invalid input. Enter 1 or 2")
+
+    # Suggested moves setting
+    show_suggested = input("Enable suggested moves? (y/n): ").lower().strip()
+    show_suggested_moves = show_suggested == 'y'
 
     ai_difficulty = None
     player_color = None
@@ -333,31 +390,37 @@ def game_loop():
             print("Invalid input. Enter 'w' or 'b'")
 
     current_turn = 'white'
+    game_over = False
     
-    while True:
-        # Check win condition before turn starts
-        result = check_for_win(board)
-        if result:
-            print_board(board)
-            print(f"\n{'*' * 40}")
-            print(f"*** GAME OVER *** {result}")
-            print(f"{'*' * 40}\n")
-            break
-
-        # Print board once at start of turn
+    while not game_over:
         print_board(board)
         
-        # AI turn handling
+        # Check for checkmate
+        if is_checkmate(board, 'white'):
+            print("\n*** CHECKMATE! Black wins! ***")
+            game_over = True
+            break
+        if is_checkmate(board, 'black'):
+            print("\n*** CHECKMATE! White wins! ***")
+            game_over = True
+            break
+            
+        if is_in_check(board, 'white'):
+            print("\nWhite king is in check!")
+        if is_in_check(board, 'black'):
+            print("\nBlack king is in check!")
+
+        # AI turn
         if mode == '1' and current_turn != player_color:
             print(f"\n{current_turn.capitalize()} AI's turn...")
-            time.sleep(1)  # Simulate thinking
+            time.sleep(1)
             
-            # Generate AI move based on difficulty
+            move = None
             if ai_difficulty == 'easy':
                 move = generate_random_move(board, current_turn)
             elif ai_difficulty == 'medium':
                 move = generate_medium_move(board, current_turn)
-            else:
+            elif ai_difficulty == 'hard':
                 move = generate_hard_move(board, current_turn)
 
             if move:
@@ -373,6 +436,7 @@ def game_loop():
                     print(f"AI captured your {target}!")
             else:
                 print("AI has no valid moves!")
+                game_over = True
             
             current_turn = 'white' if current_turn == 'black' else 'black'
             continue
@@ -381,14 +445,18 @@ def game_loop():
         print(f"\n{current_turn.capitalize()}'s turn:")
         move_input = input("Enter move (e.g. 'e2e4'), square (e.g. 'e2'), or piece (e.g. 'N'): ").strip().lower()
 
-        # Handle square input (2 characters)
+        if not move_input:
+            print("Please enter a valid input")
+            continue
+
+        # Handle square input
         if len(move_input) == 2:
             try:
                 col = ord(move_input[0]) - 97
                 row = 8 - int(move_input[1])
                 
                 if not (0 <= col < 8) or not (0 <= row < 8):
-                    raise ValueError("Invalid coordinates")
+                    raise ValueError()
                 
                 piece = board[row][col]
                 if piece == '.':
@@ -401,19 +469,19 @@ def game_loop():
                 
                 legal_moves = show_legal_moves(board, (row, col))
                 if legal_moves:
-                    print(f"\nLegal moves for {move_input.upper()}:")
+                    print(f"Legal moves for {move_input.upper()}:")
                     for x, y in legal_moves:
                         print(f"  → {coordinates_to_notation(x, y)}")
                 else:
-                    print(f"\nNo legal moves for {piece.upper()} at {move_input.upper()}")
+                    print(f"No legal moves for {piece.upper()} at {move_input.upper()}")
                 
-                continue  # Skip turn switch
+                continue
                 
             except (ValueError, IndexError):
                 print("Invalid square format. Use format like 'a2'")
                 continue
 
-        # Handle single piece input (1 character)
+        # Handle piece input
         if len(move_input) == 1:
             valid_pieces = ['k','q','r','b','n','p']
             if move_input not in valid_pieces:
@@ -440,13 +508,15 @@ def game_loop():
                 print(f"No legal moves available for {search_piece}")
                 continue
             
-            print(f"\nLegal moves for {search_piece}:")
+            print(f"Legal moves for {search_piece}:")
             for start, end in all_moves:
                 start_not = coordinates_to_notation(*start)
                 end_not = coordinates_to_notation(*end)
                 print(f"  {start_not} → {end_not}")
             
-            continue  # Skip turn switch
+            if show_suggested_moves:
+                print_board(board)
+            continue
 
         # Handle full move input
         try:
@@ -471,6 +541,12 @@ def game_loop():
                 print("Invalid move for this piece")
                 continue
                 
+            # Check if move exposes king
+            temp_board = simulate_move(board, start, end)
+            if is_in_check(temp_board, current_turn):
+                print("Invalid move - would leave king in check!")
+                continue
+                
             # Execute move
             target = board[end_row][end_col]
             move_piece(board, start, end)
@@ -478,12 +554,22 @@ def game_loop():
             if target != '.':
                 print(f"You captured {target}!")
             
-            # Switch turns only after successful move
+            # Check pawn promotion
+            if (piece == 'P' and end_row == 0) or (piece == 'p' and end_row == 7):
+                new_piece = input("Promote to (Q/R/B/N): ").upper()
+                while new_piece not in ['Q', 'R', 'B', 'N']:
+                    new_piece = input("Invalid choice. Promote to (Q/R/B/N): ").upper()
+                board[end_row][end_col] = new_piece if piece.isupper() else new_piece.lower()
+                print(f"Pawn promoted to {new_piece}!")
+            
             current_turn = 'black' if current_turn == 'white' else 'black'
             
         except Exception as e:
             print(f"Invalid move: {str(e)}")
 
+    print("\nGame over!")
+    print_board(board)
+    
 # Run the game
 if __name__ == "__main__":
     game_loop()
